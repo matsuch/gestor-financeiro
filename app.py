@@ -3,11 +3,6 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime
 import io
-from google.oauth2.credentials import Credentials
-from google.auth.transport.requests import Request
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-import os.path
 
 class Expense:
     def __init__(self, id, establishment, category, value, date):
