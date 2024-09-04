@@ -30,8 +30,6 @@ class FinanceManager:
         self.monthly_savings = []
         self.next_expense_id = 1
         self.next_savings_id = 1
-        self.sheets_manager = GoogleSheetsManager()
-        self.sheets_manager.authenticate()
 
     def add_expense(self, establishment, category, value, date):
         expense = Expense(self.next_expense_id, establishment, category, value, date)
@@ -114,56 +112,6 @@ class FinanceManager:
         except Exception as e:
             return f"Erro ao processar o arquivo CSV: {e}"
         
-    def save_expenses_to_sheets(self):
-        expenses_df = self.get_expenses_df()
-        expenses_df['Data'] = expenses_df['Data'].astype(str)
-        return self.sheets_manager.save_to_sheets(expenses_df, 'Expenses')
-
-    def save_savings_to_sheets(self):
-        savings_df = self.get_savings_df()
-        savings_df['Data'] = savings_df['Data'].astype(str)
-        return self.sheets_manager.save_to_sheets(savings_df, 'Savings')
-
-class GoogleSheetsManager:
-    def __init__(self):
-        self.SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-        self.SPREADSHEET_ID = '1HTHu4syxtJBOiPpCBFgBI_fVF2I3-JVHVwP1lXi12mQ'  # Replace with your actual spreadsheet ID
-        self.creds = None
-
-    def authenticate(self):
-        if os.path.exists('token.json'):
-            self.creds = Credentials.from_authorized_user_file('token.json', self.SCOPES)
-        if not self.creds or not self.creds.valid:
-            if self.creds and self.creds.expired and self.creds.refresh_token:
-                self.creds.refresh(Request())
-            else:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    './streamlit_env/credenciais/credentials.json', self.SCOPES)
-                self.creds = flow.run_local_server(port=8080)
-            with open('token.json', 'w') as token:
-                token.write(self.creds.to_json())
-
-    def save_to_sheets(self, data, sheet_name):
-        service = build('sheets', 'v4', credentials=self.creds)
-        sheet = service.spreadsheets()
-        
-        # Clear existing data
-        sheet.values().clear(spreadsheetId=self.SPREADSHEET_ID, range=sheet_name).execute()
-        
-        # Prepare data for insertion
-        values = [data.columns.tolist()] + data.values.tolist()
-        
-        body = {
-            'values': values
-        }
-        
-        # Insert new data
-        result = sheet.values().update(
-            spreadsheetId=self.SPREADSHEET_ID, range=sheet_name,
-            valueInputOption='USER_ENTERED', body=body).execute()
-        
-        return result
-     
 # Configuração da página
 st.set_page_config(page_title="Gestão Financeira", page_icon="💰", layout="wide")
 
@@ -253,19 +201,12 @@ with col3:
 
     # Exportar dados
     if not expenses_df.empty:
-        col3_1, col3_2 = st.columns(2)
-        with col3_1:
-            st.download_button(
-                label="Exportar despesas como CSV",
-                data=expenses_df.to_csv(index=False).encode('utf-8'),
-                file_name="despesas.csv",
-                mime="text/csv",
-            )
-            
-        with col3_2:
-            if st.button("Salvar Despesas no Google Sheets"):
-                result = fm.save_expenses_to_sheets()
-                st.success(f"Despesas salvas no Google Sheets. {result.get('updatedCells')} células atualizadas.")
+        st.download_button(
+            label="Exportar despesas como CSV",
+            data=expenses_df.to_csv(index=False).encode('utf-8'),
+            file_name="despesas.csv",
+            mime="text/csv",
+        )
                     
 with col4:
     # Exibição e edição das economias mensais
@@ -283,19 +224,12 @@ with col4:
         st.info("Nenhuma entrada registrada ainda.")
 
     if not savings_df.empty:
-        col4_1, col4_2 = st.columns(2)
-        with col4_1:
-            st.download_button(
-                label="Exportar entradas mensais como CSV",
-                data=savings_df.to_csv(index=False).encode('utf-8'),
-                file_name="entradas_mensais.csv",
-                mime="text/csv",
-            )
-        with col4_2:
-            if st.button("Salvar Entradas no Google Sheets"):
-                result = fm.save_savings_to_sheets()
-                st.success(f"Entradas salvas no Google Sheets. {result.get('updatedCells')} células atualizadas.")
-            
+        st.download_button(
+            label="Exportar entradas mensais como CSV",
+            data=savings_df.to_csv(index=False).encode('utf-8'),
+            file_name="entradas_mensais.csv",
+            mime="text/csv",
+        )           
     
 # Gráficos interativos
 st.header("Análise de Gastos")
