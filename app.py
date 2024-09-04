@@ -3,6 +3,8 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime
 import io
+import hashlib
+import os
 
 class Expense:
     def __init__(self, id, establishment, category, value, date):
@@ -106,183 +108,219 @@ class FinanceManager:
             return f"{added_count} despesas adicionadas com sucesso."
         except Exception as e:
             return f"Erro ao processar o arquivo CSV: {e}"
-        
-# Configuração da página
-st.set_page_config(page_title="Gestão Financeira", page_icon="💰", layout="wide")
 
-# Inicialização do tema e do FinanceManager
-if 'theme' not in st.session_state:
-    st.session_state.theme = 'dark'
-if 'finance_manager' not in st.session_state:
-    st.session_state.finance_manager = FinanceManager()
-if 'csv_processed' not in st.session_state:
-    st.session_state.csv_processed = False
-
-fm = st.session_state.finance_manager
-
-# Sidebar para configurações e adição de despesas
-st.sidebar.title("Cadastro financeiro")
-
-# Expander para "Adicionar Nova Despesa"
-with st.sidebar.expander("Adicionar Nova Despesa", expanded=False):
-    st.subheader("Adicionar Nova Despesa")
-    establishment = st.text_input("Estabelecimento")
-    category = st.selectbox("Categoria", ["Alimentação", "Transporte", "Custo Fixo", "Saúde", "Educação", "Lazer", "Restaurante", "Outros"])
-    value = st.number_input("Valor da Despesa", min_value=0.0, step=0.1, format="%.1f")
-    date = st.date_input("Data da Despesa")
-
-    if st.button("Adicionar Despesa"):
-        message = fm.add_expense(establishment, category, value, date)
-        st.success(message)
-
-# Expander para "Upload de Despesas via CSV"
-with st.sidebar.expander("Upload de Despesas via CSV", expanded=False):
-    st.subheader("Upload de Despesas via CSV")
-    uploaded_file = st.file_uploader("Escolha um arquivo CSV", type="csv")
-    if uploaded_file is not None and not st.session_state.get('csv_processed', False):
-        csv_content = uploaded_file.read()
-        message = fm.add_expenses_from_csv(csv_content)
-        if "Erro" in message:
-            st.error(message)
+# Função de login
+def login():
+    st.title("Login")
+    email = st.text_input("Email")
+    password = st.text_input("Senha", type="password")
+    if st.button("Login"):
+        # For now, we'll use a simple check. In a real app, you'd validate against a database.
+        if email == "admin@admin.com" and password == "admin":
+            st.session_state.logged_in = True
+            st.success("Login bem-sucedido!")
+            st.rerun()
         else:
-            st.success(message)
-            st.session_state.csv_processed = True
-    elif uploaded_file is not None and st.session_state.get('csv_processed', False):
-        st.info("O arquivo CSV já foi processado. Para adicionar novas despesas, faça um novo upload.")
-
-    # Botão para resetar o processamento do CSV
-    if st.button("Permitir novo upload de CSV"):
-        st.session_state.csv_processed = False
-        st.success("Você pode fazer um novo upload de CSV agora.")
+            st.error("Email ou senha incorretos.")
         
-# Expander para "Adicionar Entrada Mensal"
-with st.sidebar.expander("Adicionar Entrada Mensal", expanded=False):
-    st.subheader("Entrada Mensal")
-    savings_type = st.selectbox("Tipo Entrada", ["Salário", "Bônus", "Extra", "Décimo Terceiro", "FGTS"])
-    savings_value = st.number_input("Valor da Entrada", min_value=0.0, step=10.0, format="%.2f")
-    savings_date = st.date_input("Data da Entrada")
-    if st.button("Adicionar Entrada"):
-        message = fm.add_monthly_savings(savings_type, savings_value, savings_date)
-        st.success(message)
+            ##################################################################
+            ##################### Configuração da página #####################
+            ##################################################################
+        
+def main():
+        
+    st.set_page_config(page_title="Gestão Financeira", page_icon="💰", layout="wide")
 
-# Conteúdo principal
-st.title("Minha gestão financeira 💰")
+    # Inicialização do tema e do FinanceManager
+    if 'theme' not in st.session_state:
+        st.session_state.theme = 'dark'
+    if 'finance_manager' not in st.session_state:
+        st.session_state.finance_manager = FinanceManager()
+    if 'csv_processed' not in st.session_state:
+        st.session_state.csv_processed = False
+    if 'logged_in' not in st.session_state:
+        st.session_state.logged_in = False
 
-# Resumo financeiro
-st.header("Resumo Financeiro")
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.metric("Total de Gastos", f"R$ {fm.get_total_expenses():.2f}")
-with col2:
-    st.metric("Total de Entradas", f"R$ {fm.get_total_savings():.2f}")
-with col3:
-    st.metric("Saldo", f"R$ {fm.get_total_savings() - fm.get_total_expenses():.2f}")
+    # Verifica se o usuário esta logado
+    if not st.session_state.logged_in:
+        login()
+        return 
+    
+    fm = st.session_state.finance_manager
 
-# Exibição e edição das despesas
-col3, col4 = st.columns(2)
-with col3:
-    st.header("Lista de Despesas")
-    expenses_df = fm.get_expenses_df()
+    # Sidebar para configurações e adição de despesas
+    st.sidebar.title("Cadastro financeiro")
+
+    # Expander para "Adicionar Nova Despesa"
+    with st.sidebar.expander("Adicionar Nova Despesa", expanded=False):
+        st.subheader("Adicionar Nova Despesa")
+        establishment = st.text_input("Estabelecimento")
+        category = st.selectbox("Categoria", ["Alimentação", "Transporte", "Custo Fixo", "Saúde", "Educação", "Lazer", "Restaurante", "Outros"])
+        value = st.number_input("Valor da Despesa", min_value=0.0, step=0.1, format="%.1f")
+        date = st.date_input("Data da Despesa")
+
+        if st.button("Adicionar Despesa"):
+            message = fm.add_expense(establishment, category, value, date)
+            st.success(message)
+
+    # Expander para "Upload de Despesas via CSV"
+    with st.sidebar.expander("Upload de Despesas via CSV", expanded=False):
+        st.subheader("Upload de Despesas via CSV")
+        uploaded_file = st.file_uploader("Escolha um arquivo CSV", type="csv")
+        if uploaded_file is not None and not st.session_state.get('csv_processed', False):
+            csv_content = uploaded_file.read()
+            message = fm.add_expenses_from_csv(csv_content)
+            if "Erro" in message:
+                st.error(message)
+            else:
+                st.success(message)
+                st.session_state.csv_processed = True
+        elif uploaded_file is not None and st.session_state.get('csv_processed', False):
+            st.info("O arquivo CSV já foi processado. Para adicionar novas despesas, faça um novo upload.")
+
+        # Botão para resetar o processamento do CSV
+        if st.button("Permitir novo upload de CSV"):
+            st.session_state.csv_processed = False
+            st.success("Você pode fazer um novo upload de CSV agora.")
+
+    # Expander para "Adicionar Entrada Mensal"
+    with st.sidebar.expander("Adicionar Entrada Mensal", expanded=False):
+        st.subheader("Entrada Mensal")
+        savings_type = st.selectbox("Tipo Entrada", ["Salário", "Bônus", "Extra", "Décimo Terceiro", "FGTS"])
+        savings_value = st.number_input("Valor da Entrada", min_value=0.0, step=10.0, format="%.2f")
+        savings_date = st.date_input("Data da Entrada")
+        if st.button("Adicionar Entrada"):
+            message = fm.add_monthly_savings(savings_type, savings_value, savings_date)
+            st.success(message)
+
+    # Conteúdo principal
+    st.title("Minha gestão financeira 💰")
+
+    # Resumo financeiro
+    st.header("Resumo Financeiro")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total de Gastos", f"R$ {fm.get_total_expenses():.2f}")
+    with col2:
+        st.metric("Total de Entradas", f"R$ {fm.get_total_savings():.2f}")
+    with col3:
+        st.metric("Saldo", f"R$ {fm.get_total_savings() - fm.get_total_expenses():.2f}")
+
+    # Exibição e edição das despesas
+    col3, col4 = st.columns(2)
+    with col3:
+        st.header("Lista de Despesas")
+        expenses_df = fm.get_expenses_df()
+        if not expenses_df.empty:
+            edited_expenses_df = st.data_editor(expenses_df, num_rows="dynamic", key="expense_editor")
+
+            # Verificar se houve alterações e atualizar as despesas
+            if not edited_expenses_df.equals(expenses_df):
+                for index, row in edited_expenses_df.iterrows():
+                    fm.edit_expense(row['ID'], row['Estabelecimento'], row['Categoria'], row['Valor'], row['Data'])
+                st.success("Despesas atualizadas com sucesso!")
+        else:
+            st.info("Nenhuma despesa registrada ainda.")
+
+        # Exportar dados
+        if not expenses_df.empty:
+            st.download_button(
+                label="Exportar despesas como CSV",
+                data=expenses_df.to_csv(index=False).encode('utf-8'),
+                file_name="despesas.csv",
+                mime="text/csv",
+            )
+
+    with col4:
+        # Exibição e edição das economias mensais
+        st.header("Lista de Entradas Mensais")
+        savings_df = fm.get_savings_df()
+        if not savings_df.empty:
+            edited_savings_df = st.data_editor(savings_df, num_rows="dynamic", key="savings_editor")
+
+            # Verificar se houve alterações e atualizar as economias mensais
+            if not edited_savings_df.equals(savings_df):
+                for index, row in edited_savings_df.iterrows():
+                    fm.edit_monthly_savings(row['ID'], row['Valor'], row['Data'])
+                st.success("Entradas mensais atualizadas com sucesso!")
+        else:
+            st.info("Nenhuma entrada registrada ainda.")
+
+        if not savings_df.empty:
+            st.download_button(
+                label="Exportar entradas mensais como CSV",
+                data=savings_df.to_csv(index=False).encode('utf-8'),
+                file_name="entradas_mensais.csv",
+                mime="text/csv",
+            )           
+
+    # Gráficos interativos
+    st.header("Análise de Gastos")
+
     if not expenses_df.empty:
-        edited_expenses_df = st.data_editor(expenses_df, num_rows="dynamic", key="expense_editor")
+        # Preparar dados
+        expenses_df['Data'] = pd.to_datetime(expenses_df['Data'])
+        expenses_df['Ano'] = expenses_df['Data'].dt.year
+        expenses_df['Mês'] = expenses_df['Data'].dt.strftime('%B')
 
-        # Verificar se houve alterações e atualizar as despesas
-        if not edited_expenses_df.equals(expenses_df):
-            for index, row in edited_expenses_df.iterrows():
-                fm.edit_expense(row['ID'], row['Estabelecimento'], row['Categoria'], row['Valor'], row['Data'])
-            st.success("Despesas atualizadas com sucesso!")
-    else:
-        st.info("Nenhuma despesa registrada ainda.")
+        # Seleção do tipo de gráfico
+        chart_type = st.selectbox("Selecione o tipo de análise:", 
+                                  ["Gastos por Categoria", "Gastos por Estabelecimento", "Gastos Mensais"])
 
-    # Exportar dados
-    if not expenses_df.empty:
-        st.download_button(
-            label="Exportar despesas como CSV",
-            data=expenses_df.to_csv(index=False).encode('utf-8'),
-            file_name="despesas.csv",
-            mime="text/csv",
+        if chart_type == "Gastos por Categoria":
+            data = expenses_df.groupby('Categoria')['Valor'].sum().reset_index()
+            #fig = px.pie(data, values='Valor', names='Categoria', title='Gastos por Categoria')
+            fig = px.bar(data, x='Valor', y='Categoria', orientation='h', text='Valor', title='Gastos por Categoria')
+            fig.update_traces(texttemplate='%{text:.2s}', textposition='outside')
+            fig.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
+
+        elif chart_type == "Gastos por Estabelecimento":
+            data = expenses_df.groupby('Estabelecimento')['Valor'].sum().reset_index().sort_values('Valor', ascending=False)
+            fig = px.bar(data, x='Estabelecimento', y='Valor', title='Gastos por Estabelecimento')
+
+        else: 
+            data = expenses_df.groupby('Mês')['Valor'].sum().reset_index()
+            fig = px.bar(data, x='Mês', y='Valor', text='Valor', title='Gastos Mensais')
+            fig.update_traces(texttemplate='%{text:.2s}', textposition='outside')
+            fig.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
+
+        # Ajustar o tema do gráfico
+        fig.update_layout(
+            template='plotly_dark' if st.session_state.theme == 'dark' else 'plotly_white',
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)'
         )
-                    
-with col4:
-    # Exibição e edição das economias mensais
-    st.header("Lista de Entradas Mensais")
-    savings_df = fm.get_savings_df()
-    if not savings_df.empty:
-        edited_savings_df = st.data_editor(savings_df, num_rows="dynamic", key="savings_editor")
 
-        # Verificar se houve alterações e atualizar as economias mensais
-        if not edited_savings_df.equals(savings_df):
-            for index, row in edited_savings_df.iterrows():
-                fm.edit_monthly_savings(row['ID'], row['Valor'], row['Data'])
-            st.success("Entradas mensais atualizadas com sucesso!")
+        st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("Nenhuma entrada registrada ainda.")
-
-    if not savings_df.empty:
-        st.download_button(
-            label="Exportar entradas mensais como CSV",
-            data=savings_df.to_csv(index=False).encode('utf-8'),
-            file_name="entradas_mensais.csv",
-            mime="text/csv",
-        )           
+        st.info("Adicione despesas para ver os gráficos.")
     
-# Gráficos interativos
-st.header("Análise de Gastos")
-
-if not expenses_df.empty:
-    # Preparar dados
-    expenses_df['Data'] = pd.to_datetime(expenses_df['Data'])
-    expenses_df['Ano'] = expenses_df['Data'].dt.year
-    expenses_df['Mês'] = expenses_df['Data'].dt.strftime('%B')
-
-    # Seleção do tipo de gráfico
-    chart_type = st.selectbox("Selecione o tipo de análise:", 
-                              ["Gastos por Categoria", "Gastos por Estabelecimento", "Gastos Mensais"])
-
-    if chart_type == "Gastos por Categoria":
-        data = expenses_df.groupby('Categoria')['Valor'].sum().reset_index()
-        #fig = px.pie(data, values='Valor', names='Categoria', title='Gastos por Categoria')
-        fig = px.bar(data, x='Valor', y='Categoria', orientation='h', text='Valor', title='Gastos por Categoria')
-        fig.update_traces(texttemplate='%{text:.2s}', textposition='outside')
-        fig.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
-    
-    elif chart_type == "Gastos por Estabelecimento":
-        data = expenses_df.groupby('Estabelecimento')['Valor'].sum().reset_index().sort_values('Valor', ascending=False)
-        fig = px.bar(data, x='Estabelecimento', y='Valor', title='Gastos por Estabelecimento')
-    
-    else: 
-        data = expenses_df.groupby('Mês')['Valor'].sum().reset_index()
-        fig = px.bar(data, x='Mês', y='Valor', text='Valor', title='Gastos Mensais')
-        fig.update_traces(texttemplate='%{text:.2s}', textposition='outside')
-        fig.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
-
-    # Ajustar o tema do gráfico
-    fig.update_layout(
-        template='plotly_dark' if st.session_state.theme == 'dark' else 'plotly_white',
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)'
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("Adicione despesas para ver os gráficos.")
-
-# Aplicar o tema
-if st.session_state.theme == 'dark':
-    st.markdown("""
-        <style>
-        .stApp {
-            background-color: #1E1E1E;
-            color: white;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-else:
-    st.markdown("""
-        <style>
-        .stApp {
-            background-color: white;
-            color: black;
-        }
-        </style>
-    """, unsafe_allow_html=True)
+    # Aplicar o tema
+    if st.session_state.theme == 'dark':
+        st.markdown("""
+            <style>
+            .stApp {
+                background-color: #1E1E1E;
+                color: white;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+            <style>
+            .stApp {
+                background-color: white;
+                color: black;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+        
+        
+    # Add a logout button
+    if st.sidebar.button("Logout"):
+        st.session_state.logged_in = False
+        st.rerun()
+        
+# Run the app
+if __name__ == "__main__":
+    main()
