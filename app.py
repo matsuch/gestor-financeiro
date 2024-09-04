@@ -6,6 +6,58 @@ import io
 import hashlib
 import os
 
+# login firebase
+import firebase_admin
+from firebase_admin import credentials, auth
+
+# Configuração da página Streamlit (primeiro comando do Streamlit)
+st.set_page_config(page_title="Gestão Financeira", page_icon="💰", layout="wide")
+
+# Função para registrar um novo usuário
+def register_user(email, password):
+    try:
+        user = auth.create_user(
+            email=email,
+            password=password
+        )
+        st.success(f"Usuário {user.email} registrado com sucesso!")
+        return user
+    except Exception as e:
+        st.error(f"Erro ao registrar usuário: {e}")
+        return None
+
+# Acessar variáveis do TOML
+firebase_secrets = st.secrets["firebase"]
+
+# Configuração do Firebase
+cred = credentials.Certificate({
+    "type": firebase_secrets["type"],
+    "project_id": firebase_secrets["project_id"],
+    "private_key_id": firebase_secrets["private_key_id"],
+    "private_key": firebase_secrets["private_key"].replace('\\n', '\n'),  # Converta os caracteres de nova linha para que sejam interpretados corretamente
+    "client_email": firebase_secrets["client_email"],
+    "client_id": firebase_secrets["client_id"],
+    "auth_uri": firebase_secrets["auth_uri"],
+    "token_uri": firebase_secrets["token_uri"],
+    "auth_provider_x509_cert_url": firebase_secrets["auth_provider_x509_cert_url"],
+    "client_x509_cert_url": firebase_secrets["client_x509_cert_url"],
+    "universe_domain": firebase_secrets["universe_domain"]
+})
+
+if not firebase_admin._apps:
+    firebase_admin.initialize_app(cred)
+
+
+# Função para autenticar usuário
+def authenticate_user(email, password):
+    try:
+        user = auth.get_user_by_email(email)
+        # Aqui você pode adicionar lógica para verificar a senha.
+        return user
+    except firebase_admin.auth.UserNotFoundError:
+        st.error("Usuário não encontrado.")
+        return None
+
 class Expense:
     def __init__(self, id, establishment, category, value, date):
         self.id = id
@@ -34,7 +86,7 @@ class FinanceManager:
         self.next_expense_id += 1
         return f"Despesa adicionada: {expense.establishment} - R${expense.value:.2f}"
 
-    def edit_expense(self, id, establishment, value, date):
+    def edit_expense(self, id, establishment, category, value, date):
         for expense in self.expenses:
             if expense.id == id:
                 expense.establishment = establishment
@@ -111,17 +163,50 @@ class FinanceManager:
 
 # Função de login
 def login():
-    st.title("Login")
-    email = st.text_input("Email")
-    password = st.text_input("Senha", type="password")
-    if st.button("Login"):
-        # For now, we'll use a simple check. In a real app, you'd validate against a database.
-        if email == "admin@admin.com" and password == "admin":
-            st.session_state.logged_in = True
-            st.success("Login bem-sucedido!")
-            st.rerun()
-        else:
-            st.error("Email ou senha incorretos.")
+    st.title("Acesse agora seu Gestor Financeiro Pessoal")
+    
+    # Inicializa variáveis de estado
+    if 'is_registering' not in st.session_state:
+        st.session_state.is_registering = False
+    
+    # Botões para alternar entre Login e Registrar
+    col1, col2 = st.columns([1, 20])
+    with col1:
+        if st.button("Login"):
+            st.session_state.is_registering = False
+    with col2:
+        if st.button("Registrar"):
+            st.session_state.is_registering = True
+            
+    # Formulário de Login ou Registro baseado no estado
+    if st.session_state.is_registering:
+        st.subheader("Registrar Novo Usuário")
+        email = st.text_input("Email", key="register_email_unique")
+        password = st.text_input("Senha", type="password", key="register_password_unique")
+        if st.button("Registrar", key="register_button_unique"):
+            user = register_user(email, password)
+            if user:
+                st.success("Registro realizado com sucesso! Faça o login.")
+    
+    else:
+        st.subheader("Login")
+        # Cria um formulário com o nome 'login_form'
+        with st.form("login_form"):
+            email = st.text_input("Email", key="login_email_unique")
+            password = st.text_input("Senha", type="password", key="login_password_unique")
+
+            # O botão de submissão do formulário
+            submit_button = st.form_submit_button("Login")
+
+        # Verifica se o formulário foi submetido (seja pelo botão ou pelo "Enter")
+        if submit_button:
+            user = authenticate_user(email, password)
+            if user:
+                st.success(f"Bem-vindo, {user.display_name}!")
+                st.session_state.logged_in = True
+                st.rerun()  # Recarrega a página para atualizar o estado
+            else:
+                st.error("Credenciais inválidas.")
         
             ##################################################################
             ##################### Configuração da página #####################
@@ -129,8 +214,6 @@ def login():
         
 def main():
         
-    st.set_page_config(page_title="Gestão Financeira", page_icon="💰", layout="wide")
-
     # Inicialização do tema e do FinanceManager
     if 'theme' not in st.session_state:
         st.session_state.theme = 'dark'
@@ -200,11 +283,11 @@ def main():
     st.header("Resumo Financeiro")
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Total de Gastos", f"R$ {fm.get_total_expenses():.2f}")
+        st.metric("Total de Gastos", f"R$ {fm.get_total_expenses():,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
     with col2:
-        st.metric("Total de Entradas", f"R$ {fm.get_total_savings():.2f}")
+        st.metric("Total de Entradas", f"R$ {fm.get_total_savings():,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
     with col3:
-        st.metric("Saldo", f"R$ {fm.get_total_savings() - fm.get_total_expenses():.2f}")
+        st.metric("Saldo", f"R$ {(fm.get_total_savings() - fm.get_total_expenses()):,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
     # Exibição e edição das despesas
     col3, col4 = st.columns(2)
@@ -320,6 +403,8 @@ def main():
     if st.sidebar.button("Logout"):
         st.session_state.logged_in = False
         st.rerun()
+
+
         
 # Run the app
 if __name__ == "__main__":
