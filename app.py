@@ -261,10 +261,11 @@ def login():
                 if st.session_state.finance_manager is None:
                     st.session_state.finance_manager = FinanceManager(st.session_state.user_id)
 
-                    for _, row in st.session_state.expenses_df.iterrows():
-                        st.session_state.finance_manager.add_expense(
-                            row['Estabelecimento'], row['Categoria'], row['Valor'], pd.to_datetime(row['Data']).date()
-                        )
+                    if 'expenses_df' in st.session_state and not st.session_state.expenses_df.empty:
+                        for _, row in st.session_state.expenses_df.iterrows():
+                            st.session_state.finance_manager.add_expense(
+                                row['Estabelecimento'], row['Categoria'], row['Valor'], pd.to_datetime(row['Data']).date()
+                            )
                 st.rerun()
             else:
                 st.error("Credenciais inválidas.")
@@ -298,31 +299,44 @@ def main():
         st.session_state.finance_manager = None
     if 'csv_processed' not in st.session_state:
         st.session_state.csv_processed = False
+    if 'expenses_df' not in st.session_state:
+        st.session_state.expenses_df = pd.DataFrame()
+        
+    # Configura o tema do Streamlit
+    if st.session_state.theme == 'dark':
+        st.markdown(
+            """
+            <style>
+            .reportview-container {
+                background: #2E2E2E;
+                color: white;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
 
+    # Exibe a página de login se o usuário não estiver logado
     if not st.session_state.logged_in:
         login()
-    else:
-        # Página inicial do aplicativo
-        user_id = st.session_state.user_id
+        return
 
-        if 'user_data' in st.session_state and st.session_state.user_data['user_id'] != user_id:
-            st.session_state.user_data = None
-        
-        load_user_data(user_id)  
+    # Página inicial do aplicativo após o login
+    user_id = st.session_state.user_id  
 
-        # Certifique-se de que o FinanceManager está inicializado
-        if st.session_state.finance_manager is None:
-            st.session_state.finance_manager = FinanceManager(st.session_state.user_id)
+    # Certifique-se de que o FinanceManager está inicializado
+    if st.session_state.finance_manager is None:
+        st.session_state.finance_manager = FinanceManager(st.session_state.user_id)
 
-        if st.session_state.finance_manager is None:
-            st.session_state.finance_manager = FinanceManager(st.session_state.user_id)
-            if 'expenses_df' in st.session_state and not st.session_state.expenses_df.empty:
-                for _, row in st.session_state.expenses_df.iterrows():
-                    st.session_state.finance_manager.add_expense(
-                        row['Estabelecimento'], row['Categoria'], row['Valor'], pd.to_datetime(row['Data']).date()
-                    )
+    if st.session_state.finance_manager is None:
+        st.session_state.finance_manager = FinanceManager(st.session_state.user_id)
+        if 'expenses_df' in st.session_state and not st.session_state.expenses_df.empty:
+            for _, row in st.session_state.expenses_df.iterrows():
+                st.session_state.finance_manager.add_expense(
+                    row['Estabelecimento'], row['Categoria'], row['Valor'], pd.to_datetime(row['Data']).date()
+                )
     
-        fm = st.session_state.finance_manager
+    fm = st.session_state.finance_manager
 
         # Sidebar para configurações e adição de despesas
         st.sidebar.title("Cadastro financeiro")
@@ -470,26 +484,6 @@ def main():
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Adicione despesas para ver os gráficos.")
-    
-    # Aplicar o tema
-    if st.session_state.theme == 'dark':
-        st.markdown("""
-            <style>
-            .stApp {
-                background-color: #1E1E1E;
-                color: white;
-            }
-            </style>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-            <style>
-            .stApp {
-                background-color: white;
-                color: black;
-            }
-            </style>
-        """, unsafe_allow_html=True)
         
     # Add a logout button
     if st.sidebar.button("Logout"):
@@ -497,8 +491,6 @@ def main():
         st.session_state.user_id = None
         st.session_state.finance_manager = None
         st.rerun()
-
-
         
 # Run the app
 if __name__ == "__main__":
