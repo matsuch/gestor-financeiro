@@ -13,8 +13,9 @@ from firebase_admin import credentials, auth, db
 # Acessar variáveis do TOML
 firebase_secrets = st.secrets["firebase"]
 
-# Configuração do Firebase
-cred = credentials.Certificate({
+# Initialize Firebase (if not already initialized)
+if not firebase_admin._apps:
+    cred = credentials.Certificate({
     "type": firebase_secrets["type"],
     "project_id": firebase_secrets["project_id"],
     "private_key_id": firebase_secrets["private_key_id"],
@@ -26,7 +27,11 @@ cred = credentials.Certificate({
     "auth_provider_x509_cert_url": firebase_secrets["auth_provider_x509_cert_url"],
     "client_x509_cert_url": firebase_secrets["client_x509_cert_url"],
     "universe_domain": firebase_secrets["universe_domain"]
-})
+    })
+    
+    firebase_admin.initialize_app(cred, {
+        'databaseURL': firebase_secrets["databaseURL"]
+    })
 
 # Configuração da página Streamlit (primeiro comando do Streamlit)
 st.set_page_config(page_title="Gestão Financeira", page_icon="💰", layout="wide")
