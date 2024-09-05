@@ -170,6 +170,7 @@ class FinanceManager:
         try:
             df = pd.read_csv(io.StringIO(csv_content.decode('utf-8')))
             required_columns = ["Estabelecimento", "Valor da Despesa", "Data", "Categoria"]
+            
             if not all(col in df.columns for col in required_columns):
                 return "Erro: O arquivo CSV não contém todas as colunas necessárias."
 
@@ -189,6 +190,7 @@ class FinanceManager:
             self.save_expenses_to_firebase()
 
             return f"{added_count} despesas adicionadas com sucesso. Você já pode fazer outro upload"
+        
         except Exception as e:
             return f"Erro ao processar o arquivo CSV: {e}"
 
@@ -398,18 +400,22 @@ def main():
     with st.sidebar.expander("Upload de Despesas via CSV", expanded=False):
         st.subheader("Upload de Despesas via CSV")
         uploaded_file = st.file_uploader("Escolha um arquivo CSV", type="csv")
+        
         if uploaded_file is not None and not st.session_state.get('csv_processed', False):
             csv_content = uploaded_file.read()
             message = fm.add_expenses_from_csv(csv_content)
+            
             if "Erro" in message:
                 st.error(message)
             else:
                 st.success(message)
+                # Marca o CSV como processado e moreve o arquivo carregado do backend
+                st.session_state.csv_processed = True
+                st.session_state['uploaded_file'] = None
+                del uploaded_file
                 
         elif uploaded_file is not None and st.session_state.get('csv_processed', False):
-            st.info("O arquivo CSV já foi processado. Para adicionar novas despesas, faça um novo upload.")
-            st.session_state.csv_processed = False
-
+            st.info("O arquivo CSV já foi processado. Para adicionar novas despesas, faça um novo upload.")           
     # Expander para "Adicionar Entrada Mensal"
     with st.sidebar.expander("Adicionar Entrada Mensal", expanded=False):
         st.subheader("Entrada Mensal")
