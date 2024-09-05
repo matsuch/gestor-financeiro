@@ -50,15 +50,13 @@ def register_user(email, password):
         st.error(f"Erro ao registrar usuário: {e}")
         return None
 
+# Função para autenticar usuário
 def authenticate_user(email, password):
     try:
-        # Autentica o usuário com email e senha
         user = auth.get_user_by_email(email)
-        if user and auth.verify_password_hash(user.uid, password):
-            st.session_state.logged_in = True
-            st.session_state.user_id = user.uid
-            load_user_data(user.uid)
-            return user
+        st.session_state.logged_in = True
+        st.session_state.user_id = user.uid
+        return user
     except Exception as e:
         st.error(f"Erro ao autenticar usuário: {e}")
         return None
@@ -213,19 +211,16 @@ def load_expenses_from_firebase(user_id):
 def login():
     st.title("Acesse agora seu Gestor Financeiro Pessoal")
     
-    # Inicializa variáveis de estado
     if 'is_registering' not in st.session_state:
         st.session_state.is_registering = False
 
     if 'logged_in' not in st.session_state:
         st.session_state.logged_in = False
     
-    # Verifica se o usuário já está logado
     if st.session_state.logged_in and 'user_id' in st.session_state:
-        st.success(f"Bem-vindo novamente, {st.session_state.user_display_name}!")
+        st.success(f"Bem-vindo novamente!")
         return
     
-    # Botões para alternar entre Login e Registrar
     col1, col2 = st.columns([1, 20])
     with col1:
         if st.button("Login"):
@@ -234,7 +229,6 @@ def login():
         if st.button("Registrar"):
             st.session_state.is_registering = True
             
-    # Formulário de Login ou Registro baseado no estado
     if st.session_state.is_registering:
         st.subheader("Registrar Novo Usuário")
         email = st.text_input("Email", key="register_email_unique")
@@ -246,37 +240,32 @@ def login():
     
     else:
         st.subheader("Login")
-        # Cria um formulário com o nome 'login_form'
         with st.form("login_form"):
             email = st.text_input("Email", key="login_email_unique")
             password = st.text_input("Senha", type="password", key="login_password_unique")
 
-            # O botão de submissão do formulário
             submit_button = st.form_submit_button("Login")
 
-        # Verifica se o login foi bem-sucedido e carrega os dados
         if submit_button:
             user = authenticate_user(email, password)
             if user:
-                st.success(f"Bem-vindo, {user.display_name or user.email}! Aguarde enquanto carregamos os seus dados.")
+                st.success(f"Bem-vindo, {user.email}! Aguarde enquanto carregamos os seus dados.")
                 st.session_state.logged_in = True
-                st.session_state.user_id = user.uid  # Atribui o user_id corretamente
+                st.session_state.user_id = user.uid
 
                 # Carregar as despesas e economias do Firebase após o login
                 expenses_df = load_expenses_from_firebase(st.session_state.user_id)
                 if not expenses_df.empty:
                     st.session_state.expenses_df = expenses_df
 
-                # Inicializa o FinanceManager se ainda não existir
                 if st.session_state.finance_manager is None:
                     st.session_state.finance_manager = FinanceManager(st.session_state.user_id)
 
-                    # Preencher o FinanceManager com as despesas carregadas do Firebase
                     for _, row in st.session_state.expenses_df.iterrows():
                         st.session_state.finance_manager.add_expense(
                             row['Estabelecimento'], row['Categoria'], row['Valor'], pd.to_datetime(row['Data']).date()
                         )
-                st.rerun()  # Recarrega a página para atualizar o estado
+                st.rerun()
             else:
                 st.error("Credenciais inválidas.")
 
@@ -298,8 +287,7 @@ def logout():
             ##################### Configuração da página #####################
             ##################################################################
         
-def main():   
-    # Inicialização do tema e do FinanceManager
+def main():
     if 'theme' not in st.session_state:
         st.session_state.theme = 'dark'
     if 'logged_in' not in st.session_state:
@@ -314,18 +302,18 @@ def main():
     if not st.session_state.logged_in:
         login()
     else:
+        # Página inicial do aplicativo
         user_id = st.session_state.user_id
-        # Verificar se os dados são consistentes
+
         if 'user_data' in st.session_state and st.session_state.user_data['user_id'] != user_id:
             st.session_state.user_data = None
-        # Carregar dados do usuário
-        load_user_data(user_id) 
-
-    # Certifique-se de que o FinanceManager está inicializado
-    if st.session_state.finance_manager is None:
-        st.session_state.finance_manager = FinanceManager(st.session_state.user_id)
         
-    if st.session_state.logged_in:
+        load_user_data(user_id)  
+
+        # Certifique-se de que o FinanceManager está inicializado
+        if st.session_state.finance_manager is None:
+            st.session_state.finance_manager = FinanceManager(st.session_state.user_id)
+
         if st.session_state.finance_manager is None:
             st.session_state.finance_manager = FinanceManager(st.session_state.user_id)
             if 'expenses_df' in st.session_state and not st.session_state.expenses_df.empty:
