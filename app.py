@@ -25,8 +25,11 @@ cred = credentials.Certificate({
     "token_uri": firebase_secrets["token_uri"],
     "auth_provider_x509_cert_url": firebase_secrets["auth_provider_x509_cert_url"],
     "client_x509_cert_url": firebase_secrets["client_x509_cert_url"],
-    "universe_domain": firebase_secrets["universe_domain"],
-    "databaseURL": firebase_secrets["databaseURL"]
+    "universe_domain": firebase_secrets["universe_domain"]
+})
+
+firebase_admin.initialize_app(cred, {
+    'databaseURL': firebase_secrets["databaseURL"]
 })
 
 if not firebase_admin._apps:
