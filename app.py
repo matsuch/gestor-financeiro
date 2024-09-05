@@ -52,13 +52,13 @@ def register_user(email, password):
 
 # Função para autenticar usuário
 def authenticate_user(email, password):
-    try:
-        user = auth.get_user_by_email(email)
-        # Aqui você pode adicionar lógica para verificar a senha.
-        return user
-    except firebase_admin.auth.UserNotFoundError:
-        st.error("Usuário não encontrado.")
-        return None
+    user = firebase.authenticate(email, password)
+    if user:
+        st.session_state.logged_in = True
+        st.session_state.user_id = user['id']
+        load_user_data(user['id'])
+    else:
+        st.error("Falha na autenticação.")
 
 class Expense:
     def __init__(self, id, establishment, category, value, date):
@@ -273,10 +273,23 @@ def login():
                         st.session_state.finance_manager.add_expense(
                             row['Estabelecimento'], row['Categoria'], row['Valor'], pd.to_datetime(row['Data']).date()
                         )
-
+st
                 st.rerun()  # Recarrega a página para atualizar o estado
             else:
                 st.error("Credenciais inválidas.")
+
+def load_user_data(user_id):
+    # Função para carregar dados específicos do usuário
+    user_data = firebase.get_user_data(user_id)
+    st.session_state.user_data = user_data
+                
+# Função de logout                
+def logout():
+    # Limpar o estado do usuário
+    st.session_state.clear()
+    st.session_state.logged_in = False
+    st.session_state.user_data = None
+    st.write("Você foi desconectado.")
         
             ##################################################################
             ##################### Configuração da página #####################
@@ -297,7 +310,13 @@ def main():
 
     if not st.session_state.logged_in:
         login()
-        return 
+    else:
+        user_id = st.session_state.user_id
+        # Verificar se os dados são consistentes
+        if 'user_data' in st.session_state and st.session_state.user_data['user_id'] != user_id:
+            st.session_state.user_data = None
+        # Carregar dados do usuário
+        load_user_data(user_id) 
 
     # Certifique-se de que o FinanceManager está inicializado
     if st.session_state.finance_manager is None:
