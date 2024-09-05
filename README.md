@@ -88,7 +88,3 @@ Cada despesa contém as seguintes informações:
 
 Contribuições são bem-vindas! Sinta-se à vontade para abrir um pull request ou relatar um problema.
 
-## Licença
-
-Este projeto está licenciado sob a licença MIT. Consulte o arquivo [LICENSE](LICENSE) para obter mais informações.
-
