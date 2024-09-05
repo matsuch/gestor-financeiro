@@ -361,6 +361,8 @@ def main():
         st.session_state.finance_manager = None
     if 'csv_processed' not in st.session_state:
         st.session_state.csv_processed = False
+    if 'last_uploaded_file' not in st.session_state:
+        st.session_state.last_uploaded_file = None
 
     if not st.session_state.logged_in:
         login()
@@ -400,22 +402,28 @@ def main():
     with st.sidebar.expander("Upload de Despesas via CSV", expanded=False):
         st.subheader("Upload de Despesas via CSV")
         uploaded_file = st.file_uploader("Escolha um arquivo CSV", type="csv")
-        
-        if uploaded_file is not None and not st.session_state.get('csv_processed', False):
-            csv_content = uploaded_file.read()
-            message = fm.add_expenses_from_csv(csv_content)
-            
-            if "Erro" in message:
-                st.error(message)
-            else:
-                st.success(message)
-                # Marca o CSV como processado e moreve o arquivo carregado do backend
-                st.session_state.csv_processed = True
-                st.session_state['uploaded_file'] = None
-                del uploaded_file
+
+        if uploaded_file is not None:
+            # Verifica se o arquivo atual é diferente do último arquivo processado
+            if uploaded_file != st.session_state.last_uploaded_file:
+                st.session_state.csv_processed = False  # Permite novo processamento
                 
-        elif uploaded_file is not None and st.session_state.get('csv_processed', False):
-            st.info("O arquivo CSV já foi processado. Para adicionar novas despesas, faça um novo upload.")           
+            # Processa o CSV
+            if not st.session_state.csv_processed:
+                csv_content = uploaded_file.read()
+                message = fm.add_expenses_from_csv(csv_content)
+                
+                if "Erro" in message:
+                    st.error(message)
+                else:
+                    st.success(message)
+                    st.session_state.csv_processed = True
+                    st.session_state.last_uploaded_file = uploaded_file  # Armazena o último arquivo
+                    del uploaded_file  # Remove o arquivo do backend
+            
+            elif st.session_state.csv_processed:
+                st.info("O arquivo CSV já foi processado. Para adicionar novas despesas, faça um novo upload.")           
+    
     # Expander para "Adicionar Entrada Mensal"
     with st.sidebar.expander("Adicionar Entrada Mensal", expanded=False):
         st.subheader("Entrada Mensal")
