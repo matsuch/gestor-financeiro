@@ -6,33 +6,9 @@ import io
 import hashlib
 import os
 
-# Firebase imports
+# login firebase
 import firebase_admin
-from firebase_admin import credentials, auth, db
-
-# Acessar variáveis do TOML
-firebase_secrets = st.secrets["firebase"]
-
-# Configuração do Firebase
-cred = credentials.Certificate({
-    "type": firebase_secrets["type"],
-    "project_id": firebase_secrets["project_id"],
-    "private_key_id": firebase_secrets["private_key_id"],
-    "private_key": firebase_secrets["private_key"].replace('\\n', '\n'),
-    "client_email": firebase_secrets["client_email"],
-    "client_id": firebase_secrets["client_id"],
-    "auth_uri": firebase_secrets["auth_uri"],
-    "token_uri": firebase_secrets["token_uri"],
-    "auth_provider_x509_cert_url": firebase_secrets["auth_provider_x509_cert_url"],
-    "client_x509_cert_url": firebase_secrets["client_x509_cert_url"],
-    "universe_domain": firebase_secrets["universe_domain"]
-})
-
-# Inicialização do Firebase
-if not firebase_admin._apps:
-    firebase_admin.initialize_app(cred, {
-        'databaseURL': firebase_secrets["databaseURL"]
-    })
+from firebase_admin import credentials, auth
 
 # Configuração da página Streamlit (primeiro comando do Streamlit)
 st.set_page_config(page_title="Gestão Financeira", page_icon="💰", layout="wide")
@@ -50,15 +26,36 @@ def register_user(email, password):
         st.error(f"Erro ao registrar usuário: {e}")
         return None
 
+# Acessar variáveis do TOML
+firebase_secrets = st.secrets["firebase"]
+
+# Configuração do Firebase
+cred = credentials.Certificate({
+    "type": firebase_secrets["type"],
+    "project_id": firebase_secrets["project_id"],
+    "private_key_id": firebase_secrets["private_key_id"],
+    "private_key": firebase_secrets["private_key"].replace('\\n', '\n'),  # Converta os caracteres de nova linha para que sejam interpretados corretamente
+    "client_email": firebase_secrets["client_email"],
+    "client_id": firebase_secrets["client_id"],
+    "auth_uri": firebase_secrets["auth_uri"],
+    "token_uri": firebase_secrets["token_uri"],
+    "auth_provider_x509_cert_url": firebase_secrets["auth_provider_x509_cert_url"],
+    "client_x509_cert_url": firebase_secrets["client_x509_cert_url"],
+    "universe_domain": firebase_secrets["universe_domain"]
+})
+
+if not firebase_admin._apps:
+    firebase_admin.initialize_app(cred)
+
+
 # Função para autenticar usuário
 def authenticate_user(email, password):
     try:
         user = auth.get_user_by_email(email)
-        st.session_state.logged_in = True
-        st.session_state.user_id = user.uid
+        # Aqui você pode adicionar lógica para verificar a senha.
         return user
-    except Exception as e:
-        st.error(f"Erro ao autenticar usuário: {e}")
+    except firebase_admin.auth.UserNotFoundError:
+        st.error("Usuário não encontrado.")
         return None
 
 class Expense:
@@ -77,8 +74,7 @@ class MonthlySavings:
         self.date = date
 
 class FinanceManager:
-    def __init__(self, user_id=None):
-        self.user_id = user_id
+    def __init__(self):
         self.expenses = []
         self.monthly_savings = []
         self.next_expense_id = 1
@@ -88,10 +84,6 @@ class FinanceManager:
         expense = Expense(self.next_expense_id, establishment, category, value, date)
         self.expenses.append(expense)
         self.next_expense_id += 1
-
-        # Salva automaticamente no Firebase após adicionar despesa
-        self.save_expenses_to_firebase()
-
         return f"Despesa adicionada: {expense.establishment} - R${expense.value:.2f}"
 
     def edit_expense(self, id, establishment, category, value, date):
@@ -101,17 +93,8 @@ class FinanceManager:
                 expense.category = category
                 expense.value = float(value)
                 expense.date = date
-
-                # Salva automaticamente no Firebase após editar despesa
-                self.save_expenses_to_firebase()
-
                 return f"Despesa atualizada: {expense.establishment} - R${expense.value:.2f}"
         return "Despesa não encontrada"
-    
-    # Função que salva automaticamente as despesas
-    def save_expenses_to_firebase(self):
-        expenses_df = self.get_expenses_df()
-        save_expenses_to_firebase(self.user_id, expenses_df)
 
     def add_monthly_savings(self, saving_type, value, date):
         savings = MonthlySavings(self.next_savings_id, saving_type, value, date)
@@ -174,53 +157,19 @@ class FinanceManager:
                 except Exception as e:
                     st.error(f"Erro ao adicionar despesa: {e}")
 
-            # Salva automaticamente no Firebase após adicionar despesas do CSV
-            self.save_expenses_to_firebase()
-
             return f"{added_count} despesas adicionadas com sucesso."
         except Exception as e:
             return f"Erro ao processar o arquivo CSV: {e}"
 
-# Função para salvar os dados no firebase
-def save_expenses_to_firebase(user_id, expenses_df):
-    try:
-        expenses_ref = db.reference(f'users/{user_id}/expenses')
-        expenses_df['Data'] = expenses_df['Data'].astype(str)
-        expenses_data = expenses_df.to_dict('records')
-        expenses_ref.set(expenses_data)
-        return True
-    except Exception as e:
-        st.error(f"Erro ao salvar dados no Firebase: {e}")
-        return False
-        
-# Função para carregar as despesas e economias do Firebase
-def load_expenses_from_firebase(user_id):
-    try:
-        expenses_ref = db.reference(f'users/{user_id}/expenses')
-        expenses_data = expenses_ref.get()
-        if expenses_data:
-            expenses_df = pd.DataFrame(expenses_data)
-            return expenses_df
-        else:
-            return pd.DataFrame()  # Retorna um DataFrame vazio se não houver despesas
-    except Exception as e:
-        st.error(f"Erro ao carregar despesas do Firebase: {e}")
-        return pd.DataFrame()
-        
 # Função de login
 def login():
     st.title("Acesse agora seu Gestor Financeiro Pessoal")
     
+    # Inicializa variáveis de estado
     if 'is_registering' not in st.session_state:
         st.session_state.is_registering = False
-
-    if 'logged_in' not in st.session_state:
-        st.session_state.logged_in = False
     
-    if st.session_state.logged_in and 'user_id' in st.session_state:
-        st.success(f"Bem-vindo novamente!")
-        return
-    
+    # Botões para alternar entre Login e Registrar
     col1, col2 = st.columns([1, 20])
     with col1:
         if st.button("Login"):
@@ -229,6 +178,7 @@ def login():
         if st.button("Registrar"):
             st.session_state.is_registering = True
             
+    # Formulário de Login ou Registro baseado no estado
     if st.session_state.is_registering:
         st.subheader("Registrar Novo Usuário")
         email = st.text_input("Email", key="register_email_unique")
@@ -240,101 +190,44 @@ def login():
     
     else:
         st.subheader("Login")
+        # Cria um formulário com o nome 'login_form'
         with st.form("login_form"):
             email = st.text_input("Email", key="login_email_unique")
             password = st.text_input("Senha", type="password", key="login_password_unique")
 
+            # O botão de submissão do formulário
             submit_button = st.form_submit_button("Login")
 
+        # Verifica se o formulário foi submetido (seja pelo botão ou pelo "Enter")
         if submit_button:
             user = authenticate_user(email, password)
             if user:
-                st.success(f"Bem-vindo, {user.email}! Aguarde enquanto carregamos os seus dados.")
+                st.success(f"Bem-vindo, {user.display_name}!")
                 st.session_state.logged_in = True
-                st.session_state.user_id = user.uid
-
-                # Carregar as despesas e economias do Firebase após o login
-                expenses_df = load_expenses_from_firebase(st.session_state.user_id)
-                if not expenses_df.empty:
-                    st.session_state.expenses_df = expenses_df
-
-                if st.session_state.finance_manager is None:
-                    st.session_state.finance_manager = FinanceManager(st.session_state.user_id)
-
-                    if 'expenses_df' in st.session_state and not st.session_state.expenses_df.empty:
-                        for _, row in st.session_state.expenses_df.iterrows():
-                            st.session_state.finance_manager.add_expense(
-                                row['Estabelecimento'], row['Categoria'], row['Valor'], pd.to_datetime(row['Data']).date()
-                            )
-                st.rerun()
+                st.rerun()  # Recarrega a página para atualizar o estado
             else:
                 st.error("Credenciais inválidas.")
-
-def load_user_data(user_id):
-    # Função para carregar dados específicos do usuário
-    user_data = firebase.get_user_data(user_id)
-    st.session_state.user_data = user_data
-                
-# Função de logout                
-def logout():
-    # Limpar o estado do usuário
-    st.session_state.clear()
-    st.session_state.logged_in = False
-    st.session_state.user_data = None
-    st.write("Você foi desconectado.")
-    st.rerun()
         
             ##################################################################
             ##################### Configuração da página #####################
             ##################################################################
         
 def main():
+        
+    # Inicialização do tema e do FinanceManager
     if 'theme' not in st.session_state:
         st.session_state.theme = 'dark'
-    if 'logged_in' not in st.session_state:
-        st.session_state.logged_in = False
-    if 'user_id' not in st.session_state:
-        st.session_state.user_id = None
     if 'finance_manager' not in st.session_state:
-        st.session_state.finance_manager = None
+        st.session_state.finance_manager = FinanceManager()
     if 'csv_processed' not in st.session_state:
         st.session_state.csv_processed = False
-    if 'expenses_df' not in st.session_state:
-        st.session_state.expenses_df = pd.DataFrame()
-        
-    # Configura o tema do Streamlit
-    if st.session_state.theme == 'dark':
-        st.markdown(
-            """
-            <style>
-            .reportview-container {
-                background: #2E2E2E;
-                color: white;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
+    if 'logged_in' not in st.session_state:
+        st.session_state.logged_in = False
 
-    # Exibe a página de login se o usuário não estiver logado
+    # Verifica se o usuário esta logado
     if not st.session_state.logged_in:
         login()
-        return
-
-    # Página inicial do aplicativo após o login
-    user_id = st.session_state.user_id  
-
-    # Certifique-se de que o FinanceManager está inicializado
-    if st.session_state.finance_manager is None:
-        st.session_state.finance_manager = FinanceManager(st.session_state.user_id)
-
-    if st.session_state.finance_manager is None:
-        st.session_state.finance_manager = FinanceManager(st.session_state.user_id)
-        if 'expenses_df' in st.session_state and not st.session_state.expenses_df.empty:
-            for _, row in st.session_state.expenses_df.iterrows():
-                st.session_state.finance_manager.add_expense(
-                    row['Estabelecimento'], row['Categoria'], row['Valor'], pd.to_datetime(row['Data']).date()
-                )
+        return 
     
     fm = st.session_state.finance_manager
 
@@ -402,7 +295,7 @@ def main():
         st.header("Lista de Despesas")
         expenses_df = fm.get_expenses_df()
         if not expenses_df.empty:
-            edited_expenses_df = st.data_editor(expenses_df, num_rows="dynamic", key="expense_editor")            
+            edited_expenses_df = st.data_editor(expenses_df, num_rows="dynamic", key="expense_editor")
 
             # Verificar se houve alterações e atualizar as despesas
             if not edited_expenses_df.equals(expenses_df):
@@ -484,13 +377,34 @@ def main():
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("Adicione despesas para ver os gráficos.")
+    
+    # Aplicar o tema
+    if st.session_state.theme == 'dark':
+        st.markdown("""
+            <style>
+            .stApp {
+                background-color: #1E1E1E;
+                color: white;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+            <style>
+            .stApp {
+                background-color: white;
+                color: black;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+        
+        
+    # Add a logout button
+    if st.sidebar.button("Logout"):
+        st.session_state.logged_in = False
+        st.rerun()
 
-# Add a logout button
-if st.sidebar.button("Logout"):
-    st.session_state.logged_in = False
-    st.session_state.user_id = None
-    st.session_state.finance_manager = None
-    st.rerun()
+
         
 # Run the app
 if __name__ == "__main__":
