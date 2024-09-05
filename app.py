@@ -50,15 +50,18 @@ def register_user(email, password):
         st.error(f"Erro ao registrar usuário: {e}")
         return None
 
-# Função para autenticar usuário
 def authenticate_user(email, password):
-    user = firebase.authenticate(email, password)
-    if user:
-        st.session_state.logged_in = True
-        st.session_state.user_id = user['id']
-        load_user_data(user['id'])
-    else:
-        st.error("Falha na autenticação.")
+    try:
+        # Autentica o usuário com email e senha
+        user = auth.get_user_by_email(email)
+        if user and auth.verify_password_hash(user.uid, password):
+            st.session_state.logged_in = True
+            st.session_state.user_id = user.uid
+            load_user_data(user.uid)
+            return user
+    except Exception as e:
+        st.error(f"Erro ao autenticar usuário: {e}")
+        return None
 
 class Expense:
     def __init__(self, id, establishment, category, value, date):
@@ -289,6 +292,7 @@ def logout():
     st.session_state.logged_in = False
     st.session_state.user_data = None
     st.write("Você foi desconectado.")
+    st.rerun()
         
             ##################################################################
             ##################### Configuração da página #####################
