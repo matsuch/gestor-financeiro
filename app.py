@@ -273,7 +273,6 @@ def login():
                         st.session_state.finance_manager.add_expense(
                             row['Estabelecimento'], row['Categoria'], row['Valor'], pd.to_datetime(row['Data']).date()
                         )
-st
                 st.rerun()  # Recarrega a página para atualizar o estado
             else:
                 st.error("Credenciais inválidas.")
