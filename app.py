@@ -18,7 +18,7 @@ cred = credentials.Certificate({
     "type": firebase_secrets["type"],
     "project_id": firebase_secrets["project_id"],
     "private_key_id": firebase_secrets["private_key_id"],
-    "private_key": firebase_secrets["private_key"].replace('\\n', '\n'),  # Converta os caracteres de nova linha para que sejam interpretados corretamente
+    "private_key": firebase_secrets["private_key"].replace('\\n', '\n'),
     "client_email": firebase_secrets["client_email"],
     "client_id": firebase_secrets["client_id"],
     "auth_uri": firebase_secrets["auth_uri"],
@@ -28,12 +28,11 @@ cred = credentials.Certificate({
     "universe_domain": firebase_secrets["universe_domain"]
 })
 
-firebase_admin.initialize_app(cred, {
-    'databaseURL': firebase_secrets["databaseURL"]
-})
-
+# Inicialização do Firebase
 if not firebase_admin._apps:
-    firebase_admin.initialize_app(cred)
+    firebase_admin.initialize_app(cred, {
+        'databaseURL': firebase_secrets["databaseURL"]
+    })
 
 # Configuração da página Streamlit (primeiro comando do Streamlit)
 st.set_page_config(page_title="Gestão Financeira", page_icon="💰", layout="wide")
